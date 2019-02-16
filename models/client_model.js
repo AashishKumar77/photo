@@ -13,12 +13,11 @@ country_code: {
     },
     client_phone_no: {
         type: String,
-        maxlength: 15
+        maxlength: 15,
+        unique:true,
     },
     client_email: {
         type: String,	
-		sparse: true,
-		unique:true,
         maxlength: 255
     },
     created_date: {
@@ -38,11 +37,18 @@ country_code: {
         maxlength: 225
     },
     profile_image:{
-        type:String
+        type:String,
+        default:""
     },
     photograph_id:{
-        type:String
-    }
+        type:String,
+        default:""
+    },
+    password:{
+        type:String,
+        default:""
+    },
+
 },
 {
    versionKey: false // You should be aware of the outcome after set to false

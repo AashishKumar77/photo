@@ -17,12 +17,22 @@ var studioSchema = new Schema({
 		unique:true,
         maxlength: 255
     }, 
-    studio_name_status: {
-        type: Boolean,
-        default:"0"	
-		
+    studio_name_on_image: {
+        type: String,
+        default:""	
     },
-
+    slide_Show_time:{
+        type: String,
+        default:""
+    },
+    interval:{
+        type: String,
+        default:""
+    },
+    disable_interval_view:{
+        type: String,
+        default:""
+    },
     created_date: {
         type: Date,
         default: Date.now
@@ -38,6 +48,7 @@ var studioSchema = new Schema({
     photograph_id:{
         type:String
     },
+   
     file:{
         type:String,
         deafult:""
@@ -45,7 +56,10 @@ var studioSchema = new Schema({
     country_code:{
         type:String,
         
-    }
+    },
+    photographer_name:{
+        type:String,
+    },
 },
 {
    versionKey: false // You should be aware of the outcome after set to false
