@@ -1,0 +1,1 @@
+{"options":{},"indexes":[{"v":1,"key":{"_id":1},"name":"_id_","ns":"photography.studios"},{"v":1,"unique":true,"key":{"studio_email":1},"name":"studio_email_1","ns":"photography.studios","sparse":true,"background":true}]}

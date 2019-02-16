@@ -1,0 +1,1 @@
+{"options":{},"indexes":[{"v":1,"key":{"_id":1},"name":"_id_","ns":"photography.clients"},{"v":1,"unique":true,"key":{"client_phone_no":1},"name":"client_phone_no_1","ns":"photography.clients","background":true}]}
