@@ -46,7 +46,16 @@ var studioSchema = new Schema({
         default: 1
     },
     photograph_id:{
-        type:String
+        type: Schema.Types.ObjectId, 
+        ref: 'user',
+    },
+    shared_images:{
+        type: Schema.Types.ObjectId, 
+        ref: 'shared_images',
+    },
+    event:{
+        type: Schema.Types.ObjectId, 
+        ref: 'event',
     },
    
     file:{

@@ -3,6 +3,10 @@ var uniqueValidator = require('mongoose-unique-validator');
 var Schema = mongoose.Schema;
 
 var clientSchema = new Schema({
+    event_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'event',
+    },
 country_code: {
 		type: String,
 		default:""
@@ -32,7 +36,7 @@ country_code: {
         type: Boolean,
         default: 1
     },
-    token:{
+    client_token:{
         type: String,
         maxlength: 225
     },
@@ -48,6 +52,10 @@ country_code: {
         type:String,
         default:""
     },
+    token:{
+        type:String,
+        default:""
+    }
 
 },
 {

@@ -4,16 +4,24 @@ var Schema = mongoose.Schema;
 
 var shareimageSchema  = new Schema({
 
+    image_ids:{type: String,
+        default:""},
+    studio_id:{
+        type: Schema.Types.ObjectId, 
+        ref: 'studio',
+    },
     client_id: {
         type: String,
+        default:""
     },
     photograph_id: {
         type: String,
+        default:""
     },
-    image_ids: {
-        type: String,
-        
-    },
+    // image_ids: {
+    //     type: String,
+    //     default:""
+    // },
     created_date: {
         type: Date,
         default: Date.now
@@ -28,7 +36,11 @@ var shareimageSchema  = new Schema({
     },
     preview_mode:{
         type: String,
-        
+        default: ""
+    },
+    event_id:{
+        type: Schema.Types.ObjectId, 
+        ref: 'event',
     },
    
 },

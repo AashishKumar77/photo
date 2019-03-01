@@ -3,6 +3,8 @@ var con = require('./db');
 var formidable = require('formidable');
 const mongoose = require('mongoose');
 var body = require('body-parser');
+var _ = require('underscore-node');
+var Q= require("q");
 var router = express.Router();
  var nodemailer = require('nodemailer');
 var Genpassword = require('secure-random-password');
@@ -12,9 +14,13 @@ var Studio = require("../models/studio_model");
 var Event = require("../models/event_model");
 var UploadImage = require("../models/upload_image_model");
 var SharedImage = require("../models/shareimages_model");
+var Order = require("../models/order_model");
 var crypto = require('crypto');
 var multer  = require('multer');
-var client_profile_image = 'http://18.188.175.133/PhotoGraph/uploads/client_profile_images/';
+var extend = require('node.extend');
+var async = require("async");
+var $ = require("jquery");
+var client_profile_image = 'http://18.188.175.133/PhotoGraph/uploads/profile_images/';
 var upload_images_url = 'http://18.188.175.133/PhotoGraph/uploads/images/';
 var storage4 = multer.diskStorage({
 destination: function(req,file,cb){
@@ -303,7 +309,7 @@ else{
                                 Studio.findOne({ 'photograph_id': data._id }, function(err, data3) {
         
                                 if(data3){
-                                    console.log(data3)
+                                  
                                     res.json({
                                         "status": "1",
                                         "status_message":"Data Updated Successfully",
@@ -469,7 +475,7 @@ router.post('/add_client',upload.single('image'), (req,res,next) => {
        }); return;
 }
 else{
-    User.findOne({ 'token': req.headers.token }, function(err, data) {
+    User.findOne({ 'token': req.headers.token }, function(err, dataa) {
         try {
             if (err) {
                 res.json({
@@ -477,21 +483,24 @@ else{
                     "status_message":"Fields are required"
                 });return;
             } else {
-                if (data) {
-                    if (data.token != req.headers.token) {
+                if (dataa) {
+                    if (dataa.token != req.headers.token) {
                         res.json({
                             "status": "0",
                             "status_message": "User does not Exist.",
                         }); return;
                     } else {
-                        var photograph_id = data._id;
+                        var photograph_id = dataa._id;
                         var cemail = req.body.email;
                         var cname = req.body.client_name;
                         var c_date = req.body.date;
                         var m_date = req.body.date;
                         var phone = req.body.phone_no;
                         var country_code = req.body.country_code;
-                    
+                        var random_num = Math.floor(Math.random() * 1000000) + 1;
+                            var de_token = random_num.toString();
+                            var mykey = crypto.createCipher('aes-128-cbc', 'token');
+                            var token_en = mykey.update(de_token, 'utf8', 'hex') + mykey.final('hex');
                         
                         if(!req.file){
                             file = "";
@@ -501,19 +510,18 @@ else{
                          }
                          Client.find({ 'client_phone_no': phone,'country_code':country_code}, function(err, data) {
                          var count = data.length;
-                         console.log(count)
                              if(count == 0){
                                var client = new Client({
                                  client_email:cemail,
+                                 client_name:cname,
                                  photograph_id:photograph_id,
                                  client_phone_no:phone,
                                  password : "",
-                                 token:"",
+                                 photograph_token:req.headers.token,
                                  country_code:country_code,
                                  created_date:c_date,
                                  modified_date:m_date,
                                  is_deleted:"0",
-                                 client_name:cname,
                                  profile_image:file,
                                });
                                
@@ -531,7 +539,8 @@ else{
                                       client_id:client._id,
                                       client_name:client.client_name,
                                       image:imageurl,
-                                      date:client.created_date
+                                      date:client.created_date,
+                                      token:client.token
                                   });
                                })
                                .catch(err =>{
@@ -541,12 +550,37 @@ else{
                                 });
                                });
                             }else{
-                                res.status(500).json({
+                                User.findOne({ 'token': req.headers.token }, function(err, dataas) {
+                                 var phone =  req.body.phone_no;
+                                 var cname = req.body.client_name;
+                                 if(!req.file){
+                                    file = "";
+                                }
+                                else{
+                                    file = req.file.originalname;
+                                 }
+                                var myquery1 = {client_phone_no:phone};
+                                
+                                var newvalues1 = { $set: {photograph_id:dataas._id,client_name:cname,profile_image:file} };
+                                Client.updateMany(myquery1, newvalues1, function(err, data3) {
+                                   if(data3){
+                                    Client.find({ 'client_phone_no': phone,'country_code':country_code}, function(err, datas) {
+                                 res.status(500).json({
                                     "Status":"0",
-                                    "message":"Client Already exist",
-                                    "data":data
+                                    "message":"Client added successfully",
+                                    "data":datas
 
                                   });
+                                    });
+                                   }
+
+                               
+                                });
+
+                            });
+
+
+
                             }
                             });
                     }
@@ -589,7 +623,7 @@ else{
                             "status_message": "User does not Exist.",
                         }); return;
                     } else {
-                        Client.find({ 'photograph_id': data._id }, function(err, dataa) {
+                        Client.find({ 'photograph_id': data._id ,is_deleted:'0'}, function(err, dataa) {
                             var  data = [];
                             dataa.forEach(function(data2){
                                 if(data2.profile_image){
@@ -694,7 +728,10 @@ else{
                                studio
                                .save()
                                .then(result=>{
-                                   if(studio.file){
+                                if(studio.file == ""){
+                                    var image = baseurl;
+                                }
+                                   else if(studio.file){
                                      var image = studio_profile+studio.file;
                                    }else{
                                      var image = baseurl;
@@ -706,6 +743,7 @@ else{
                                       studio_id:studio._id,
                                       studio_name:studio.studio_name,
                                       photographer_name:photographer_name,
+                                      photograph_id:photograph_id,
                                       studio_image:image,
                                   });
                                })
@@ -896,12 +934,8 @@ router.post('/get_event', (req, res, next) =>{
                                 "status_message": "User does not Exist.",
                             }); return;
                         } else {
-                            Event.find({ 'photograph_id': data._id ,client_id:req.body.client_id}, function(err, data) {
-                                // console.log(data)
-                                // var count =  data.length;
-                                // for(var i=0; i>=count; i++ ){
-                                //   console.log(data.i)
-                                // }
+                            Event.find({ 'photograph_id': data._id ,client_id:req.body.client_id,is_deleted:'0'}, function(err, data) {
+                               
                                 var  record = [];
                                 data.forEach(function(data3){
                                   if(data3.number_of_images == ""){
@@ -926,13 +960,6 @@ router.post('/get_event', (req, res, next) =>{
                                                       "data":record,
                                                     });
                        
-                       
-                                //        res.json({
-                        //     "status": "1",
-                        //     "status_message": "shown Successfully",
-                        //     "data":data,
-                            
-                        // }); return;
                             });
                         
                                     }
@@ -968,7 +995,7 @@ router.post('/upload_images',uploads_images.single('image'), (req, res, next) =>
                     });return;
                 } else {
                     if (data) {
-                        console.log(data)
+                       
                         if (data.token != req.headers.token) {
                             res.json({
                                 "status": "0",
@@ -980,7 +1007,7 @@ router.post('/upload_images',uploads_images.single('image'), (req, res, next) =>
 
                               var add1 = data2.length;
                               var count = Number(varr)+Number(add1);
-                              console.log(count)
+                             
                               var myquery = { _id:req.body.event_id};
                                 var newvalues = { $set: {number_of_images:count} };
                                 Event.update(myquery, newvalues, function(err, result) {
@@ -1049,15 +1076,27 @@ router.post('/shared_images',upload_image.single('image'), (req, res, next) =>{
                                 "status_message": "User does not Exist.",
                             }); return;
                         } else {
+                            
                             var photograph_id = data._id;
                             var client_id = req.body.client_id;
                             var upload_images_id = req.body.images_id;
+                             var images_data = upload_images_id.split(',');
                             var preview_mode = req.body.preview_mode;
+                            var event_id = req.body.event_id;
+                            var studio_id = req.body.studio_id;
+                            UploadImage.find({_id: { $in: images_data}}, function(err, docs){
+                           
+                          var  images_data = JSON.stringify(docs);
+
+                                Client.findOne({ '_id': req.body.client_id }, function(err, data) {
+                           if(data){
                             var sharedimage = new SharedImage({
                                photograph_id:photograph_id,
-                               image_ids:upload_images_id,
+                               image_ids:images_data,
                                client_id:client_id,
-                               preview_mode:preview_mode
+                               preview_mode:preview_mode,
+                               event_id:event_id,
+                               studio_id:studio_id
                               });
                               sharedimage
                               .save()
@@ -1073,6 +1112,19 @@ router.post('/shared_images',upload_image.single('image'), (req, res, next) =>{
                                  "message":"error"
                                });
                               });
+
+                            }else{
+                                res.status(201).json({
+                                    status:"0",
+                                    message:"Clientid is not valid",
+                                });
+                            }
+                            });
+
+                            });
+
+
+                        
                         
                                     }
                     } else {
@@ -1115,7 +1167,7 @@ router.post('/get_client_profile', (req, res, next) =>{
                         } else {
                            if(data){
                                if(data.profile_image){
-                                var profile_image =client_profile_image+profile_image;
+                                var profile_image =client_profile_image+data.profile_image;
                                }else{
                                    var profile_image = baseurl; 
                                }
@@ -1185,23 +1237,18 @@ Client.findOne({ 'token': req.headers.token }, function(err, data) {
             } else {
                
                 if (data) {
-                    console.log(data)
-                        var country_code = req.body.country_code;
-                        var user_name = req.body.user_name;
-                        var email = req.body.email;
-                        var phone_no = req.body.phone_no;
                          if(!req.file){
-                            image = "";
+                         var   image = "";
                         }
                         else{
-                            image = req.file.originalname;
+                            var   image = req.file.originalname;
                         }
                         var myquery = { _id: data._id };
-                        console.log(myquery)
-                        var newvalues = { $set: {client_email:email,client_name:user_name,client_phone_no:phone_no,country_code:country_code,profile_image:image} };
-                        console.log(newvalues)
+                    
+                        var newvalues = { $set: {client_email:req.body.email,client_phone_no:req.body.phone_no,country_code:req.body.country_code,profile_image:image} };
                         Client.updateMany(myquery, newvalues, function(err, result) {
                             if(result){
+                                
                                 Client.findOne({ '_id': data._id }, function(err, data3) {
                                    res.json({
                                 "status": "1",
@@ -1360,10 +1407,6 @@ router.post('/client_register', upload_profile.single('file'), (req,res,next) =>
      var pwd = req.body.password;
     var phone = req.body.phone_no;
     var country_code = req.body.country_code;
-    var random_num = Math.floor(Math.random() * 1000000) + 1;
-    var de_token = random_num.toString();
-    var mykey = crypto.createCipher('aes-128-cbc', 'token');
-    var token_en = mykey.update(de_token, 'utf8', 'hex') + mykey.final('hex');
    if(pwd == "" || phone == "" || country_code == ""){
         res.status(500).json({
             "Status":"0",
@@ -1372,29 +1415,22 @@ router.post('/client_register', upload_profile.single('file'), (req,res,next) =>
    }else{
     Client.findOne({ 'client_phone_no': phone,'country_code':country_code}, function(err, data) {
         if(data){
-            console.log(data)
+            if(data.password == ""){
+                var random_num = Math.floor(Math.random() * 1000000) + 1;
+    var de_token = random_num.toString();
+    var mykey = crypto.createCipher('aes-128-cbc', 'token');
+    var token_en = mykey.update(de_token, 'utf8', 'hex') + mykey.final('hex');
             var myquery1 = {client_phone_no:data.client_phone_no};
             
-            var newvalues1 = { $set: {password:req.body.password} };
-            
+            var newvalues1 = { $set: {password:req.body.password,token:token_en} };
             Client.updateMany(myquery1, newvalues1, function(err, result) {
-        // var  record = [];
-        // data.forEach(function(data3){
-        //                       record.push({
-        //                                 "country_code": data3.country_code,
-        //                                 "client_name": data3.client_name,
-        //                                 "client_id": data3._id,
-        //                                 "client_email": data3.client_email,
-        //                                 "client_phone_no": data3.client_phone_no,
-        //                                 "profile_image": data3.profile_image,
-        //                                 "password":data3.password
-        //                       });
-        //                     });
-        if(result){
-                            res.json({
+                        if(result){
+                            Client.findOne({ 'client_phone_no': data.client_phone_no}, function(err, data2) {
+                                res.json({
                               "status": "1",
-                              "status_message": "Record Found",
-                              "data":result,
+                              "status_message": "Registered Successfully",
+                              "data":data2,
+                            });
                             });
                         }else{
                             res.json({
@@ -1404,6 +1440,16 @@ router.post('/client_register', upload_profile.single('file'), (req,res,next) =>
                               });
                         }
                         });
+                    }else{
+                        res.json({
+                            "status": "0",
+                            "status_message": "Already Registered",
+                            "data":data,
+                          });
+                    }
+
+
+
         }
         else{
             var pwd = req.body.password;
@@ -1471,7 +1517,7 @@ router.post('/client_login', function(req, res, next) {
                     });return;
                 } else {
                     if (data) {
-                        console.log(data)
+                       
                         if (data.client_phone_no != phone) {
                             res.json({
                                 "status": "0",
@@ -1508,4 +1554,618 @@ router.post('/client_login', function(req, res, next) {
     
 });
 //-------------------client login api ------------//
+
+//-------------------delete  api ------------//
+
+router.post('/delete', upload_profile.single('file'), function(req, res, next) {
+ var client_id =  req.body.client_id;
+var event_id = req.body.event_id;
+if(client_id){
+    if( client_id == "" ){
+            res.status(500).json({
+                "Status":"0",
+              "message":"All fields are required"
+            });
+        
+       }else{
+        Client.findOne({ '_id':client_id }, function(err, data) {
+            try {
+                if (err) {
+                    res.json({
+                        "status": "0",
+                        "status_message":"Fields are required"
+                    });return;
+                } else {
+                    if (data) {
+                        if (data._id != client_id) {
+                            res.json({
+                                "status": "0",
+                                "status_message": "client Id does not exist.",
+                                "data":data
+                            }); return;
+                        } if (data._id == client_id) {
+                            var myquery1 = {_id:data._id};
+                            var newvalues1 = { $set: {is_deleted:'1'} };
+                            Client.updateMany(myquery1, newvalues1, function(err, result) {
+                                        if(result){
+
+                            res.json({
+                                "status": "1",
+                                "status_message": "Client Delete Successfully",
+                            }); return;
+                                        }
+                                        });
+                        } else {
+                            res.json({
+                                "status": "0",
+                                "status_message": "Wrong Password.",
+                            }); return;
+                        }
+                    } else {
+                        res.json({
+                            "status": "0",
+                            "status_message": "User not Found",
+                        }); return;
+                    }
+                }
+            } catch (e) {
+                res.json({ "status": "0", "status_message": "", 'error': e }); return;
+            }
+        });
+    }
+}else{
+    if( event_id == "" ){
+        res.status(500).json({
+            "Status":"0",
+          "message":"All fields are required"
+        });
+    
+   }else{
+    Event.findOne({ '_id':event_id }, function(err, data) {
+        try {
+            if (err) {
+                res.json({
+                    "status": "0",
+                    "status_message":"Fields are required"
+                });return;
+            } else {
+                if (data) {
+                    if (data._id != event_id) {
+                        res.json({
+                            "status": "0",
+                            "status_message": "Event Id does not exist.",
+                            "data":data
+                        }); return;
+                    } if (data._id == event_id) {
+                        var myquery1 = {_id:data._id};
+                        var newvalues1 = { $set: {is_deleted:'1'} };
+                        Event.updateMany(myquery1, newvalues1, function(err, result) {
+                                    if(result){
+
+                        res.json({
+                            "status": "1",
+                            "status_message": "Event Delete Successfully",
+                        }); return;
+                                    }
+                                    });
+                    } else {
+                        res.json({
+                            "status": "0",
+                            "status_message": "Event not found",
+                        }); return;
+                    }
+                } else {
+                    res.json({
+                        "status": "0",
+                        "status_message": "User not Found",
+                    }); return;
+                }
+            }
+        } catch (e) {
+            res.json({ "status": "0", "status_message": "", 'error': e }); return;
+        }
+    });
+}
+}
+    
+});
+//-------------------delete api ------------//
+
+
+
+//---------------------get occasion -------------//
+router.post('/get_occasion', upload_profile.single('file'), (req, res, next) =>{
+    if(!req.headers.token){
+                         res.json({
+                            "status": "0",
+                            "status_message": "Fields are required",
+                        }); return;
+    }
+    else{
+        Client.findOne({ 'token': req.headers.token }, function(err, data) {
+
+            try {
+                if (err) {
+                    res.json({
+                        "status": "0",
+                        "status_message":"Fields are required"
+                    });return;
+                } else {
+                    if (data) {
+                            
+                                SharedImage.find({'client_id':data._id}).populate('studio_id').exec(function(err, c) {
+                                           console.log(c)
+                                                
+                                           record = [];
+                                           c.forEach(function(data3){
+                                               var photograph_id =   data3.studio_id.photograph_id;
+                                               var studio_id = data3.studio_id._id;
+                                                 var images = data3.image_ids;
+                                                 var event_id = data3.event_id;
+                                                 var images_data = images.split(',');
+                                                 var count = images_data.length;
+                                                 var studio_name = data3.studio_id.studio_name;
+                                                 if(data3.studio_id.file == ""){
+                                                     var file =baseurl;
+                                                 }else{
+                                                   var file =studio_profile+data3.studio_id.file;
+                                                 }
+                                               record.push({
+                                                   "number_of_images":count,
+                                                   "created_date":data3.created_date ,
+                                                   "event_id":event_id,
+                                                   "photograph_id":photograph_id,
+                                                   "event_name":"Appointment",
+                                                   "studio_profile_image":file,
+                                                   "studio_name":studio_name,
+                                                   "studio_id":studio_id
+                                               });
+                                             });
+                                       res.json({
+                                                               "status": "1",
+                                                               "status_message": "Data Found.",
+                                                               "data":record,
+                                                               
+                                                             });
+                                                         });
+                                        
+                                //  });
+
+
+                                // Studio.findOne({ photograph_id: data.photograph_id}).populate('photograph_id').lean().exec(function(err, Parentresponse){
+                                //   console.log(Parentresponse)
+                                //   var studio_name =   Parentresponse.studio_name;
+                                //   if(Parentresponse.file){
+                                //     var image =   studio_profile+Parentresponse.file;
+                                //   }else{
+                                //     var image = baseurl;
+                                //   }
+                        
+                                //   SharedImage.find({ 'photograph_id':Parentresponse.photograph_id }, function(err, data) {
+                                    
+                                //     array = [];
+                                //     array2 = [];
+                                //         data.forEach(function(data3){
+                                //          array.push(data3.event_id);
+
+                                //         });
+                                // Event.find({_id: { $in: array}}, function(err, Eventdata){
+                                   
+                                //      var  record = [];
+                                //     Eventdata.forEach(function(data3){
+                                        
+                                //                           record.push({
+                                //                               event_created_date : data3.event__created_date,
+                                //                               event_id:data3._id,
+                                //                               photograph_id:data3.photograph_id,
+                                //                               event_name:"Appointment", 
+                                //                        });
+                                //                         });
+                                //                         res.json({
+                                //                           "status": "1",
+                                //                           "status_message": "Record Found",
+                                //                           studio_name:studio_name,
+                                //                           studio_file:image,
+                                //                           "record":record,
+                                //                         });
+                                // });
+                                //        });
+                                   
+                                
+                                // });
+                           
+                    } else {
+                        res.json({
+                            "status": "0",
+                            "status_message": "User not Found",
+                        }); return;
+                    }
+                }
+            } catch (e) {
+                res.json({ "status": "0", "status_message": "fghfh", 'error': e }); return;
+            }
+        });
+    }
+                                    });
+    
+    //---------------------get occasion-------------//
+
+    //--------------------order api ---------------//
+    router.post('/order', upload_profile.single('file'), (req,res,next) => {
+        var client_id = req.body.client_id;
+       var studio_id = req.body.studio_id;
+        var photograph_id = req.body.photograph_id;
+        var image_ids = req.body.image_ids;
+
+
+       if(client_id == "" || photograph_id == "" || image_ids == ""){
+            res.status(500).json({
+                "Status":"0",
+              "message":"All fields are required"
+            });
+       }else{
+           var order = new Order({
+            client_id:client_id,
+             photograph_id:photograph_id,
+             image_ids:image_ids,
+             payment_status:'0',
+             studio_id:studio_id
+           });
+          
+           order
+           .save()
+           .then(result=>{
+              var data = [];
+              var data1 = [];
+              var images = order.image_ids;
+              var images_data = images.split(','); // split string on comma space
+               var count_images =  images_data.length;
+
+               data.push({
+                  "order_id":order._id,
+                  "order_date":order.order_date,
+                  "number_of_images":count_images
+               });
+
+            Client.findOne({ '_id': order.client_id ,is_deleted:'0'}, function(err, dataa) {
+                if(dataa.profile_image){
+                  var image = client_profile_image+dataa.profile_image;
+                }else{
+                    var image = baseurl;
+                }
+                data1.push({
+                    "client_profile_pic":image,
+                    "client_name":dataa.client_name
+                 });
+                 var arr3 =  extend(true, data1,data);
+                 res.json({
+               "status": "1",
+               "status_message": "Ordered Successfully.",
+               "data":arr3,
+             });
+
+            });
+           })
+           .catch(err =>{
+            res.status(500).json({
+              "Status":"0",
+              "message":"Not Ordered Successfully"
+            });
+           });
+       }
+    });
+    //-------------------order api ----------------//
+  //-------------------get order images  api ------------//
+
+  router.post('/getorderimages', upload_profile.single('file'), function(req, res, next) {
+    var order_id = req.body.order_id;
+   
+
+    if(order_id == "" ){
+            res.status(500).json({
+                "Status":"0",
+              "message":"All fields are required"
+            });
+        
+       }else{
+        Order.findOne({ '_id': order_id }, function(err, data) {
+            try {
+                if (err) {
+                    res.json({
+                        "status": "0",
+                        "status_message":"Fields are required"
+                    });return;
+                } else {
+                    if (data) {
+                        if (data._id == order_id ) {
+                               var images = data.image_ids;
+                               var images_count = images.split(','); 
+                               if(images_count){
+                                UploadImage.find({_id: { $in: images_count}}, function(err, docs){
+                                    var  record = [];
+                                    docs.forEach(function(data3){
+                                                          record.push({
+                                                              "_id":data3._id,
+                                                          "image":upload_images_url+data3.image,
+                                                     });
+                                                        });
+                                                        res.json({
+                                                          "status": "1",
+                                                          "status_message": "Record Found",
+                                                          "record":record,
+                                                        });
+                                });
+                               }else{
+                                res.json({
+                                    "status": "1",
+                                    "status_message": "Record Not Found",
+                                    "record":record,
+                                  });
+                               }
+                           
+                        } else {
+                            res.json({
+                                "status": "0",
+                                "status_message": "Wrong Order Id.",
+                            }); return;
+                        }
+                    } else {
+                        res.json({
+                            "status": "0",
+                            "status_message": "User not Found",
+                        }); return;
+                    }
+                }
+            } catch (e) {
+                res.json({ "status": "0", "status_message": "", 'error': e }); return;
+            }
+        });
+    }
+    
+});
+//-------------------get order images api ------------//
+
+
+//-----------------get shared image --------------//
+router.post('/getshared_images',upload_client_profile.single('file'),(req, res, next) =>{
+    var  record = [];
+    
+    if(req.body.event_id == "" && req.body.client_id == ""){
+        res.json({
+            "status": "0",
+            "status_message": "Record Not Found"
+          });
+}else{
+    SharedImage.find({ 'event_id': req.body.event_id,'client_id':req.body.client_id}).populate('studio_id').exec(function(err, Parentresponse){ 
+      
+        Parentresponse.forEach(function(data3){
+                                   var studio_name_on_image = data3.studio_id.studio_name_on_image;
+                                   var interval =  data3.studio_id.interval;
+                                   var slide_Show_time =  data3.studio_id.slide_Show_time;
+                                   var disable_interval_view =  data3.studio_id.disable_interval_view;
+         var images =   JSON.parse(data3.image_ids);
+         console.log(images)
+         var  record1 = [];
+         images.forEach(function(data4){
+             console.log(data4)
+               record1.push({
+                "image_id":data4._id, 
+                "image_name":upload_images_url+data4.image});
+         });
+
+                                      record.push({
+                                          "studio_name_on_image":studio_name_on_image,
+                                          "interval":interval,
+                                          "slide_Show_time":slide_Show_time,
+                                          "disable_interval_view":disable_interval_view,
+                                        
+                                          "image":record1
+                                 });
+        
+                    });
+                    res.json({
+                        "status": "1",
+                        "status_message": "Record Found",
+                        "data":record
+                      });
+//         if(Parentresponse.photograph_id ){
+//    Studio.find({ 'photograph_id':Parentresponse.photograph_id }).lean().exec(function(err, data){
+//           var countarray =  Parentresponse.image_ids;
+//           var images_data = countarray.split(',');
+// 	  UploadImage.find({_id: { $in: images_data}}, function(err, docs){
+    
+//     docs.forEach(function(data3){
+//                           record.push({
+//                               "image_id":data3._id,
+//                               "image":upload_images_url+data3.image,
+//                      });
+//                         });
+//                         res.json({
+//                           "status": "1",
+//                           "status_message": "Record Found",
+//                           "studio_name_on_image":data.studio_name_on_image,
+//                             "slide_Show_time":data.slide_Show_time,
+//                             "interval":data.interval,
+//                             "disable_interval_view":data.disable_interval_view,
+//                           "record":record,
+//                         });
+// });
+// });  
+//     }     else{
+//         res.json({
+//             "status": "1",
+//             "status_message": "Record Not Found"
+//           });
+//     } 
+});
+}
+  
+    });
+//-----------------get shared image ------------//
+
+    //--------------------getorder api ---------------//
+    router.post('/getorder', upload_profile.single('file'), (req,res,next) => {
+        
+       if(!req.headers.token){
+            res.status(500).json({
+                "Status":"0",
+              "message":"All fields are required"
+            });
+       }else{
+           User.findOne({ 'token':req.headers.token }, function(err, data) {
+            if(data){
+                  console.log(data)
+                Order.find({'photograph_id':data._id}).populate('client_id').exec(function(err, c) {
+                    if (err) { return console.log(err); }
+                        record = [];
+                        c.forEach(function(data3){
+                              var images = data3.image_ids;
+                              var order_id = data3._id;
+                              var images_data = images.split(',');
+                              var count = images_data.length;
+                              var client_name = data3.client_id.client_name;
+                              if(data3.client_id.profile_image == ""){
+                                  var profile_image =baseurl;
+                              }else{
+                                var profile_image =client_profile_image+data3.client_id.profile_image;
+                              }
+                            record.push({
+                                "number_of_images":count,
+                                "order_date":data3.order_date ,
+                                "order_id":order_id,
+                                "profile_image":profile_image,
+                                "client_name":client_name
+                            });
+                          });
+                    res.json({
+                                            "status": "1",
+                                            "status_message": "Data Found.",
+                                            "data":record,
+                                            
+                                          });
+                });
+               
+            }  
+        });
+       }
+    });
+    //-------------------getorder api ----------------//
+
+    //--------------------updatepayment status api ---------------//
+    router.post('/payment_status', upload_profile.single('file'), (req,res,next) => {
+        var order_id = req.body.order_id;
+        if(order_id == ""){
+            res.status(500).json({
+                "Status":"0",
+              "message":"All fields are required"
+            });
+        }
+       else if(!req.headers.token){
+             res.status(500).json({
+                 "Status":"0",
+               "message":"All fields are required"
+             });
+        }else{
+            User.findOne({ 'token':req.headers.token }, function(err, data) {
+             if(data){
+                 Order.findOne({'photograph_id':data._id,'_id':order_id}).exec(function(err, c) {
+                     if (err) { return console.log(err); }
+                      console.log(c)
+                     var myquery = { _id: c._id };
+                     var newvalues = { $set: {payment_status:'1'} };
+                     Order.updateMany(myquery, newvalues, function(err, result) {
+                         if(result){
+                          res.json({
+                                                     "status": "1",
+                                                     "status_message": "Payment status Updated.",
+                                                 
+                                                   });
+                                                }else{
+                                                    res.json({
+                                                        "status": "1",
+                                                        "status_message": "Payment status Not Updated.",
+                                                    
+                                                      });
+                                                }               
+                    });
+                 });
+                
+             }  
+         });
+        }
+     });
+     //-------------------updatepayment status  api ----------------//
+
+//---------------------purchases-------------//
+router.post('/purchases', upload_profile.single('file'), (req, res, next) =>{
+    if(!req.headers.token){
+                         res.json({
+                            "status": "0",
+                            "status_message": "Fields are required",
+                        }); return;
+    }
+    else{
+        Client.findOne({ 'token': req.headers.token }, function(err, data) {
+
+            try {
+                if (err) {
+                    res.json({
+                        "status": "0",
+                        "status_message":"Fields are required"
+                    });return;
+                } else {
+                    if (data) {
+                            
+                                Order.find({'client_id':data._id,payment_status:'1'}).populate('studio_id').exec(function(err, c) {
+                                          console.log(c)
+                                           record = [];
+                                           c.forEach(function(data3){
+                                               var photograph_id =   data3.studio_id.photograph_id;
+                                                 var images = data3.image_ids;
+                                                 var order_id = data3._id;
+                                                 var event_id = data3.event_id;
+                                                 var images_data = images.split(',');
+                                                 var count = images_data.length;
+                                                 var studio_name = data3.studio_id.studio_name;
+                                                 if(data3.studio_id.file == ""){
+                                                     var file =baseurl;
+                                                 }else{
+                                                   var file =studio_profile+data3.studio_id.file;
+                                                 }
+                                               record.push({
+                                                   "number_of_images":count,
+                                                   "created_date":data3.created_date ,
+                                                   "event_id":event_id,
+                                                   "photograph_id":photograph_id,
+                                                   "event_name":"Appointment",
+                                                   "studio_profile_image":file,
+                                                   "order_id":order_id,
+                                                   "studio_name":studio_name,
+                                                   
+                                               });
+                                             });
+                                       res.json({
+                                                               "status": "1",
+                                                               "status_message": "Data Found.",
+                                                               "data":record,
+                                                               
+                                                             });
+                                                         });                           
+                    } else {
+                        res.json({
+                            "status": "0",
+                            "status_message": "User not Found",
+                        }); return;
+                    }
+                }
+            } catch (e) {
+                res.json({ "status": "0", "status_message": "fghfh", 'error': e }); return;
+            }
+        });
+    }
+                                    });
+    
+    //---------------------purchases -------------//
+
+
 module.exports = router;

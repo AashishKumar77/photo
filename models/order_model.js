@@ -1,17 +1,19 @@
 var mongoose = require('mongoose');
+var client = require("./client_model");
 var uniqueValidator = require('mongoose-unique-validator');
 var Schema = mongoose.Schema;
 
-var eventSchema_ = new Schema({
-
-    event_name: {
-        type: String,
-    },
-    client_id: {
+var orderSchema = new Schema({
+   
+    client_id:{
         type: Schema.Types.ObjectId, 
         ref: 'client',
     },
-    event__created_date: {
+    image_ids: {
+		type: String,
+		default:""
+    },
+    order_date: {
         type: Date,
         default: Date.now
     },
@@ -27,19 +29,25 @@ var eventSchema_ = new Schema({
         type: Boolean,
         default: 1
     },
+    
     photograph_id:{
-        type: Schema.Types.ObjectId, 
-        ref: 'user',
-    },
-    number_of_images:{
         type:String,
-        deafult:""
+        default:""
+    },
+    payment_status:{
+        type: Boolean,
+        default: 1
+    },
+    studio_id:{
+        type: Schema.Types.ObjectId, 
+        ref: 'studio',
     }
-   
+    
+
 },
 {
    versionKey: false // You should be aware of the outcome after set to false
 });
-eventSchema_.plugin(uniqueValidator,{ message: '{PATH} is to be unique.' });
-var event = mongoose.model('event', eventSchema_);
-module.exports = event;
+orderSchema.plugin(uniqueValidator,{ message: '{PATH} is to be unique.' });
+var order = mongoose.model('order', orderSchema);
+module.exports = order;
