@@ -3,24 +3,34 @@ var uniqueValidator = require('mongoose-unique-validator');
 var Schema = mongoose.Schema;
 
 var clientSchema = new Schema({
-    event_id: {
-        type: Schema.Types.ObjectId,
-        ref: 'event',
+    client_phone_no:{
+        type: String,
+        default:""
     },
-country_code: {
-		type: String,
-		default:""
+    device_id:{
+        type: String,
+    },
+    device_type:{
+        type: String,
+    },
+    country_code:{
+        type: String,
+        default:""
     },
     client_name: {
         type: String,
         default:""
     },
-    client_phone_no: {
+    client_name2: { //for client end
         type: String,
-        maxlength: 15,
-        unique:true,
+        default:""
     },
+    
     client_email: {
+        type: String,	
+        maxlength: 255
+    },
+    client_email2: { //for client end 
         type: String,	
         maxlength: 255
     },
@@ -40,7 +50,11 @@ country_code: {
         type: String,
         maxlength: 225
     },
-    profile_image:{
+    profile_image:{     //for client end 
+        type:String,
+        default:""
+    },
+    profile_image2:{
         type:String,
         default:""
     },
@@ -55,8 +69,15 @@ country_code: {
     token:{
         type:String,
         default:""
+    },
+    login_status:{
+        type:String,
+        default:""
     }
-
+,event_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'event',
+},
 },
 {
    versionKey: false // You should be aware of the outcome after set to false

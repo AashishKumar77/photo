@@ -11,6 +11,16 @@ country_code: {
         type: String,
         maxlength: 15
     },
+    device_id:{
+        type: String,
+    },
+    device_type:{
+        type: String,
+    },
+    complete_number:{
+        type: String,
+        maxlength: 15
+    },
     email: {
         type: String,	
 		sparse: true,
